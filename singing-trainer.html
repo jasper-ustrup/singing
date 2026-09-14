@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1b1410">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Resonance — singing trainer</title>
+<style>
+  :root {
+    --bg: #1b1410;
+    --surface: #2a1f19;
+    --line: #3d2f26;
+    --cream: #f2e6d2;
+    --dim: #9a8a78;
+    --amber: #e6a340;
+    --ember: #d2551f;
+    --cool: #b9c8d4;
+    --flat: #c97a6a;
+    --sharp: #7aa6c9;
+    --good: #7fb58a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--cream); }
+  body {
+    font-family: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px; line-height: 1.45;
+    min-height: 100dvh;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 18px);
+    display: flex; flex-direction: column; gap: 16px;
+    max-width: 480px; margin: 0 auto;
+    overflow-x: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+  /* mode switch */
+  .modes { display: flex; gap: 6px; padding: 4px; background: var(--surface); border-radius: 999px; }
+  .modes button { flex: 1; padding: 10px 0; border-radius: 999px; color: var(--dim); font-weight: 500; }
+  .modes button[aria-pressed="true"] { background: var(--bg); color: var(--cream); box-shadow: inset 0 0 0 1px var(--line); }
+
+  /* hero */
+  .hero { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; margin: 8px 0 0; }
+  .glow {
+    position: absolute; width: 230px; height: 230px; border-radius: 50%;
+    background: radial-gradient(circle, var(--glow-color, var(--cool)) 0%, transparent 65%);
+    opacity: var(--glow-opacity, .12); filter: blur(6px);
+    transition: opacity .25s linear, background .4s linear;
+    pointer-events: none;
+  }
+  .note {
+    position: relative;
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    font-size: 132px; line-height: 1; letter-spacing: -0.03em;
+    font-variant-numeric: lining-nums;
+    display: flex; align-items: baseline; gap: 2px;
+  }
+  .note sup { font-size: 46px; color: var(--dim); font-family: inherit; line-height: 1; margin-left: 2px; vertical-align: 0; }
+  .note.idle { color: var(--dim); opacity: .35; }
+  .sub { position: relative; color: var(--dim); font-size: 15px; margin-top: 8px; min-height: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+  .sub b { color: var(--cream); font-weight: 500; }
+
+  /* target line in mimic mode */
+  .target { text-align: center; color: var(--dim); font-size: 15px; min-height: 22px; }
+  .target b { color: var(--cream); font-weight: 500; }
+
+  /* cents strip */
+  .strip { position: relative; height: 54px; margin: 6px 4px 0; }
+  .strip .rail { position: absolute; left: 0; right: 0; top: 26px; height: 2px; background: var(--line); }
+  .strip .tick { position: absolute; top: 20px; width: 1px; height: 14px; background: var(--line); }
+  .strip .tick.mid { top: 14px; height: 26px; width: 2px; background: var(--dim); }
+  .strip .zone { position: absolute; top: 24px; height: 6px; border-radius: 3px; background: rgba(127,181,138,.28); }
+  .strip .needle {
+    position: absolute; top: 12px; width: 4px; height: 30px; margin-left: -2px; border-radius: 2px;
+    background: var(--cream); transition: left .08s linear, background .2s;
+    box-shadow: 0 0 0 4px rgba(242,230,210,.08);
+  }
+  .strip .needle.hidden { opacity: 0; }
+  .strip .lab { position: absolute; top: 40px; font-size: 12px; color: var(--dim); transform: translateX(-50%); }
+
+  /* warmth meter */
+  .warm { margin: 4px 4px 0; }
+  .warm .bar {
+    position: relative; height: 14px; border-radius: 7px;
+    background: linear-gradient(90deg, var(--cool) 0%, #d9b98a 45%, var(--amber) 78%, var(--ember) 100%);
+    opacity: .9;
+  }
+  .warm .dot {
+    position: absolute; top: -4px; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%;
+    background: var(--bg); border: 3px solid var(--cream); transition: left .12s ease-out;
+  }
+  .warm .dot.hidden { opacity: 0; }
+  .warm .ends { display: flex; justify-content: space-between; font-size: 13px; color: var(--dim); margin-top: 8px; }
+  .warm .ends span:last-child { color: var(--amber); }
+
+  /* controls */
+  .cta {
+    display: block; width: 100%; padding: 18px; border-radius: 16px;
+    background: var(--amber); color: #1b1410; font-weight: 600; font-size: 17px;
+    transition: background .15s, transform .05s;
+  }
+  .cta:active { transform: scale(.985); }
+  .cta.stop { background: var(--surface); color: var(--cream); box-shadow: inset 0 0 0 1px var(--line); }
+  .cta[disabled] { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 10px; }
+  .row .cta { flex: 1; }
+
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--surface); border-radius: 14px; }
+  .field .lbl { color: var(--dim); font-size: 14px; }
+  .seg { display: flex; gap: 4px; }
+  .seg button { padding: 8px 12px; border-radius: 10px; color: var(--dim); font-size: 14px; }
+  .seg button[aria-pressed="true"] { background: var(--bg); color: var(--cream); box-shadow: inset 0 0 0 1px var(--line); }
+
+  .steps { display: flex; gap: 6px; justify-content: center; min-height: 12px; }
+  .steps i { width: 26px; height: 6px; border-radius: 3px; background: var(--line); display: block; }
+  .steps i.now { background: var(--cream); }
+  .steps i.done { background: var(--good); }
+
+  .result { background: var(--surface); border-radius: 14px; padding: 14px 16px; font-size: 15px; color: var(--dim); }
+  .result b { color: var(--cream); font-weight: 500; }
+  .status { font-size: 14px; color: var(--dim); text-align: center; min-height: 20px; }
+  .status.err { color: var(--flat); }
+
+  details { font-size: 14px; color: var(--dim); }
+  details summary { cursor: pointer; padding: 6px 0; color: var(--dim); }
+  details p { margin: 6px 0 0; }
+  .hide { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (min-height: 760px) { .note { font-size: 150px; } .hero { min-height: 290px; } }
+</style>
+</head>
+<body>
+
+<div class="modes" role="tablist" aria-label="Mode">
+  <button role="tab" id="tabFree" aria-pressed="true">Tuner</button>
+  <button role="tab" id="tabMimic" aria-pressed="false">Call &amp; response</button>
+</div>
+
+<div class="target" id="target"></div>
+
+<div class="hero">
+  <div class="glow" id="glow"></div>
+  <div class="note idle" id="note"><span id="noteName">—</span><sup id="noteOct"></sup></div>
+  <div class="sub" id="sub">Tap start and sing a steady note</div>
+</div>
+
+<div class="strip" id="strip" aria-hidden="true">
+  <div class="rail"></div>
+  <div class="zone" style="left:44%;width:12%"></div>
+  <div class="tick" style="left:0%"></div>
+  <div class="tick" style="left:25%"></div>
+  <div class="tick mid" style="left:50%"></div>
+  <div class="tick" style="left:75%"></div>
+  <div class="tick" style="left:100%"></div>
+  <div class="lab" style="left:0%">flat</div>
+  <div class="lab" style="left:50%">in tune</div>
+  <div class="lab" style="left:100%">sharp</div>
+  <div class="needle hidden" id="needle" style="left:50%"></div>
+</div>
+
+<div class="warm" aria-label="Warmth">
+  <div class="bar"><div class="dot hidden" id="warmDot" style="left:50%"></div></div>
+  <div class="ends"><span>bright · throat / head</span><span>warm · chest</span></div>
+</div>
+
+<div class="steps" id="steps"></div>
+<div class="result hide" id="result"></div>
+
+<!-- mimic controls -->
+<div id="mimicControls" class="hide" style="display:flex;flex-direction:column;gap:10px">
+  <div class="field">
+    <span class="lbl">Range</span>
+    <div class="seg" id="rangeSeg">
+      <button data-r="low" aria-pressed="true">Low</button>
+      <button data-r="mid" aria-pressed="false">Mid</button>
+      <button data-r="high" aria-pressed="false">High</button>
+    </div>
+  </div>
+  <div class="field">
+    <span class="lbl">Notes per phrase</span>
+    <div class="seg" id="lenSeg">
+      <button data-n="3" aria-pressed="false">3</button>
+      <button data-n="4" aria-pressed="true">4</button>
+      <button data-n="5" aria-pressed="false">5</button>
+    </div>
+  </div>
+  <div class="row">
+    <button class="cta" id="btnPlay">Play a phrase</button>
+    <button class="cta stop" id="btnReplay" disabled>Hear it again</button>
+  </div>
+</div>
+
+<button class="cta" id="btnMic">Start listening</button>
+<div class="status" id="status"></div>
+
+<details>
+  <summary>How warmth is measured</summary>
+  <p>The meter can’t feel where the tone sits in your body, so it uses a proxy: how much of your sound’s energy is in the low harmonics versus the high ones. A dark, chesty tone pushes the dot right; a thin, pinched or breathy tone pushes it left. Try the same note with an open throat and a relaxed jaw and watch the dot move. It’s a guide, not a judge.</p>
+</details>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+  const RANGES = { low: [43, 55], mid: [48, 60], high: [55, 67] }; // MIDI: G2–G3, C3–C4, G3–G4
+
+  // ---------- state ----------
+  let ctx = null, analyser = null, stream = null, raf = 0, wakeLock = null;
+  let timeBuf, freqBuf;
+  let listening = false;
+  let mode = 'free';
+  let warmthEMA = null;
+  const pitchHist = [];
+
+  // mimic state
+  let range = 'low', phraseLen = 4;
+  let phrase = [], step = -1, holdFrames = 0, phase = 'idle'; // idle | playing | singing | done
+  let centsLog = [], warmLog = [];
+  const HOLD_NEEDED = 22; // ~0.6 s of consecutive in-tune frames
+
+  // ---------- helpers ----------
+  const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+  const freqToMidi = f => 69 + 12 * Math.log2(f / 440);
+  const noteParts = m => ({ name: NOTE_NAMES[((m % 12) + 12) % 12], oct: Math.floor(m / 12) - 1 });
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+
+  // ---------- pitch detection (normalized autocorrelation / NSDF) ----------
+  function detectPitch(buf, sr) {
+    const N = buf.length;
+    let rms = 0;
+    for (let i = 0; i < N; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / N);
+    if (rms < 0.012) return null;
+
+    const minLag = Math.floor(sr / 1000), maxLag = Math.min(Math.floor(sr / 55), N >> 1);
+    const nsdf = new Float32Array(maxLag + 1);
+    for (let tau = minLag; tau <= maxLag; tau++) {
+      let acf = 0, m = 0;
+      for (let j = 0, k = tau; k < N; j++, k++) {
+        const a = buf[j], b = buf[k];
+        acf += a * b; m += a * a + b * b;
+      }
+      nsdf[tau] = m > 0 ? 2 * acf / m : 0;
+    }
+    // key maxima between positive zero crossings
+    const peaks = [];
+    let tau = minLag;
+    while (tau < maxLag && nsdf[tau] > 0) tau++;
+    while (tau < maxLag) {
+      while (tau < maxLag && nsdf[tau] <= 0) tau++;
+      let best = -1, bestV = -1;
+      while (tau < maxLag && nsdf[tau] > 0) { if (nsdf[tau] > bestV) { bestV = nsdf[tau]; best = tau; } tau++; }
+      if (best > 0) peaks.push([best, bestV]);
+    }
+    if (!peaks.length) return null;
+    const top = Math.max(...peaks.map(p => p[1]));
+    if (top < 0.82) return null;
+    const pick = peaks.find(p => p[1] >= top * 0.88);
+    let t = pick[0];
+    // parabolic interpolation
+    const y0 = nsdf[t - 1] || 0, y1 = nsdf[t], y2 = nsdf[t + 1] || 0;
+    const den = y0 - 2 * y1 + y2;
+    if (den !== 0) t += 0.5 * (y0 - y2) / den;
+    return { freq: sr / t, clarity: pick[1], rms };
+  }
+
+  // ---------- warmth: harmonic centroid relative to fundamental ----------
+  function measureWarmth(f0) {
+    analyser.getFloatFrequencyData(freqBuf);
+    const sr = ctx.sampleRate, binHz = sr / analyser.fftSize;
+    const lo = Math.floor(60 / binHz), hi = Math.min(freqBuf.length - 1, Math.floor(6000 / binHz));
+    let num = 0, den = 0;
+    for (let i = lo; i <= hi; i++) {
+      const mag = Math.pow(10, freqBuf[i] / 20);
+      num += mag * i * binHz; den += mag;
+    }
+    if (den <= 0) return null;
+    const ratio = (num / den) / f0;           // ~1.3 = almost pure fundamental, 6+ = very bright
+    return clamp((5.2 - ratio) / (5.2 - 1.4), 0, 1);
+  }
+
+  // ---------- rendering ----------
+  const el = {
+    note: $('note'), noteName: $('noteName'), noteOct: $('noteOct'), sub: $('sub'), glow: $('glow'),
+    needle: $('needle'), warmDot: $('warmDot'), status: $('status'), target: $('target'),
+    steps: $('steps'), result: $('result'), btnMic: $('btnMic'), btnPlay: $('btnPlay'), btnReplay: $('btnReplay')
+  };
+
+  function showSilence() {
+    el.note.classList.add('idle');
+    el.needle.classList.add('hidden');
+    el.warmDot.classList.add('hidden');
+    el.glow.style.setProperty('--glow-opacity', .1);
+    if (listening) el.sub.textContent = phase === 'singing' ? 'Listening…' : 'Sing a steady note';
+  }
+
+  function render(freq, cents, warmth, targetMidi) {
+    const m = Math.round(freqToMidi(freq));
+    const { name, oct } = noteParts(targetMidi != null ? targetMidi : m);
+    el.note.classList.remove('idle');
+    el.noteName.textContent = name; el.noteOct.textContent = oct;
+
+    const c = clamp(cents, -50, 50);
+    el.needle.classList.remove('hidden');
+    el.needle.style.left = (50 + c) + '%';
+    const inTune = Math.abs(cents) <= 12;
+    el.needle.style.background = inTune ? 'var(--good)' : (cents < 0 ? 'var(--flat)' : 'var(--sharp)');
+
+    const shown = Math.round(cents);
+    el.sub.innerHTML = `<b>${shown > 0 ? '+' : ''}${shown}</b> cents · ${freq.toFixed(1)} Hz`;
+
+    if (warmth != null) {
+      el.warmDot.classList.remove('hidden');
+      el.warmDot.style.left = (warmth * 100) + '%';
+      // glow colour: cool → amber → ember
+      const col = warmth < 0.5
+        ? mix('#b9c8d4', '#e6a340', warmth * 2)
+        : mix('#e6a340', '#d2551f', (warmth - 0.5) * 2);
+      el.glow.style.setProperty('--glow-color', col);
+      el.glow.style.setProperty('--glow-opacity', 0.15 + warmth * 0.75);
+    }
+  }
+  function mix(a, b, t) {
+    const pa = a.match(/\w\w/g).map(h => parseInt(h, 16)), pb = b.match(/\w\w/g).map(h => parseInt(h, 16));
+    return `rgb(${pa.map((v, i) => Math.round(v + (pb[i] - v) * t)).join(',')})`;
+  }
+  function setStatus(msg, err) { el.status.textContent = msg || ''; el.status.classList.toggle('err', !!err); }
+
+  // ---------- main loop ----------
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    analyser.getFloatTimeDomainData(timeBuf);
+    const p = detectPitch(timeBuf, ctx.sampleRate);
+    if (!p || p.freq < 55 || p.freq > 1100) {
+      pitchHist.length = 0; holdFrames = 0;
+      if (phase !== 'playing') showSilence();
+      return;
+    }
+    pitchHist.push(p.freq); if (pitchHist.length > 5) pitchHist.shift();
+    const freq = median(pitchHist);
+
+    const w = measureWarmth(freq);
+    if (w != null) warmthEMA = warmthEMA == null ? w : warmthEMA + (w - warmthEMA) * 0.15;
+
+    if (mode === 'mimic' && phase === 'singing') {
+      const tm = phrase[step];
+      const cents = 1200 * Math.log2(freq / midiToFreq(tm));
+      render(freq, cents, warmthEMA, tm);
+      if (Math.abs(cents) <= 25) {
+        holdFrames++;
+        centsLog.push(Math.abs(cents)); if (warmthEMA != null) warmLog.push(warmthEMA);
+        if (holdFrames >= HOLD_NEEDED) advanceStep();
+      } else holdFrames = 0;
+    } else if (phase !== 'playing') {
+      const m = Math.round(freqToMidi(freq));
+      const cents = 1200 * Math.log2(freq / midiToFreq(m));
+      render(freq, cents, warmthEMA, null);
+    }
+  }
+
+  // ---------- mic ----------
+  async function startMic() {
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      await ctx.resume();
+      stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false
+      }});
+      const src = ctx.createMediaStreamSource(stream);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.5;
+      src.connect(analyser);
+      timeBuf = new Float32Array(analyser.fftSize);
+      freqBuf = new Float32Array(analyser.frequencyBinCount);
+      listening = true; warmthEMA = null;
+      el.btnMic.textContent = 'Stop listening'; el.btnMic.classList.add('stop');
+      setStatus('');
+      el.sub.textContent = 'Sing a steady note';
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+      loop();
+    } catch (e) {
+      const secure = window.isSecureContext;
+      setStatus(!secure ? 'Microphone needs a secure (https) page or a local file opened directly.'
+        : (e.name === 'NotAllowedError' ? 'Microphone blocked. Allow it in your browser settings, then try again.'
+        : 'Could not open the microphone: ' + e.message), true);
+    }
+  }
+  function stopMic() {
+    cancelAnimationFrame(raf);
+    stream?.getTracks().forEach(t => t.stop()); stream = null;
+    listening = false;
+    el.btnMic.textContent = 'Start listening'; el.btnMic.classList.remove('stop');
+    el.sub.textContent = 'Tap start and sing a steady note';
+    showSilence();
+    wakeLock?.release?.(); wakeLock = null;
+    if (phase === 'singing') { phase = 'idle'; el.target.textContent = 'Listening stopped — play a phrase to continue'; }
+  }
+  el.btnMic.addEventListener('click', () => listening ? stopMic() : startMic());
+
+  // ---------- synth ----------
+  function playNote(midi, at, dur) {
+    const osc = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = ctx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = midiToFreq(midi);
+    lp.type = 'lowpass'; lp.frequency.value = 1400; lp.Q.value = 0.7;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.5, at + 0.03);
+    g.gain.setValueAtTime(0.5, at + dur - 0.12);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    osc.connect(lp).connect(g).connect(ctx.destination);
+    osc.start(at); osc.stop(at + dur + 0.05);
+  }
+  function makePhrase() {
+    const [lo, hi] = RANGES[range];
+    const out = [lo + Math.floor(Math.random() * 5)];
+    while (out.length < phraseLen) {
+      const last = out[out.length - 1];
+      let next;
+      do { next = last + [-4, -3, -2, -1, 1, 2, 3, 4, 5][Math.floor(Math.random() * 9)]; }
+      while (next < lo || next > hi);
+      out.push(next);
+    }
+    return out;
+  }
+  function renderSteps() {
+    el.steps.innerHTML = phrase.map((_, i) =>
+      `<i class="${i < step ? 'done' : i === step ? 'now' : ''}"></i>`).join('');
+  }
+  async function playPhrase() {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    await ctx.resume();
+    phase = 'playing';
+    el.result.classList.add('hide');
+    el.btnPlay.disabled = true; el.btnReplay.disabled = true;
+    el.target.textContent = 'Listen…';
+    el.note.classList.add('idle'); el.needle.classList.add('hidden');
+    const dur = 0.7, t0 = ctx.currentTime + 0.1;
+    phrase.forEach((m, i) => playNote(m, t0 + i * dur, dur - 0.05));
+    step = -1; renderSteps();
+    setTimeout(() => {
+      step = 0; holdFrames = 0; centsLog = []; warmLog = [];
+      phase = 'singing'; renderSteps(); announceTarget();
+      el.btnReplay.disabled = false;
+      if (!listening) startMic();
+    }, (phrase.length * dur + 0.4) * 1000);
+  }
+  function announceTarget() {
+    const { name, oct } = noteParts(phrase[step]);
+    el.target.innerHTML = `Sing <b>${name}${oct}</b> and hold it · ${step + 1} of ${phrase.length}`;
+    el.noteName.textContent = name; el.noteOct.textContent = oct;
+    el.note.classList.add('idle');
+  }
+  function advanceStep() {
+    holdFrames = 0; step++;
+    if (step >= phrase.length) return finishPhrase();
+    renderSteps(); announceTarget();
+  }
+  function finishPhrase() {
+    phase = 'done'; step = phrase.length; renderSteps();
+    const avgC = centsLog.length ? centsLog.reduce((a, b) => a + b, 0) / centsLog.length : 0;
+    const avgW = warmLog.length ? warmLog.reduce((a, b) => a + b, 0) / warmLog.length : null;
+    const tuneWord = avgC < 6 ? 'very tight' : avgC < 12 ? 'solid' : 'a bit wide';
+    const warmWord = avgW == null ? '' : avgW > 0.7 ? 'deep and warm' : avgW > 0.45 ? 'balanced' : 'on the bright side';
+    el.result.innerHTML = `Phrase done. Tuning was <b>${tuneWord}</b> (average ${avgC.toFixed(0)} cents off)`
+      + (warmWord ? ` and the tone sat <b>${warmWord}</b>.` : '.')
+      + ` Try the same phrase again and aim the warmth dot further right.`;
+    el.result.classList.remove('hide');
+    el.target.textContent = 'Play again or make a new phrase';
+    el.btnPlay.disabled = false; el.btnReplay.disabled = false;
+    el.btnPlay.textContent = 'New phrase';
+  }
+  el.btnPlay.addEventListener('click', () => { phrase = makePhrase(); playPhrase(); });
+  el.btnReplay.addEventListener('click', () => { if (phrase.length) playPhrase(); });
+
+  // ---------- mode & settings ----------
+  function setMode(m) {
+    mode = m;
+    $('tabFree').setAttribute('aria-pressed', m === 'free');
+    $('tabMimic').setAttribute('aria-pressed', m === 'mimic');
+    $('mimicControls').classList.toggle('hide', m !== 'mimic');
+    el.result.classList.add('hide');
+    el.steps.innerHTML = '';
+    el.target.textContent = m === 'mimic' ? 'Play a phrase, then sing it back' : '';
+    el.btnPlay.disabled = false; el.btnPlay.textContent = 'Play a phrase';
+    el.btnReplay.disabled = true;
+    phase = 'idle'; phrase = []; step = -1;
+  }
+  $('tabFree').addEventListener('click', () => setMode('free'));
+  $('tabMimic').addEventListener('click', () => setMode('mimic'));
+  $('rangeSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    range = b.dataset.r;
+    [...$('rangeSeg').children].forEach(x => x.setAttribute('aria-pressed', x === b));
+  });
+  $('lenSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    phraseLen = +b.dataset.n;
+    [...$('lenSeg').children].forEach(x => x.setAttribute('aria-pressed', x === b));
+  });
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && listening && !wakeLock) {
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+    }
+  });
+})();
+</script>
+</body>
+</html>
